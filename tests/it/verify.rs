@@ -1,6 +1,6 @@
 use crate::*;
 use alloy_chains::Chain;
-use foundry_block_explorers::verify::VerifyContract;
+use foundry_block_explorers::verify::{CodeFormat, VerifyContract};
 use foundry_compilers::{Project, ProjectPathsConfig};
 use serial_test::serial;
 use std::path::Path;
@@ -33,9 +33,71 @@ async fn can_flatten_and_verify_contract() {
             .submit_contract_verification(&contract)
             .await
             .expect("failed to send the request");
-        // `Error!` result means that request was malformatted
-        assert_ne!(resp.result, "Error!", "{resp:?}");
-        assert_ne!(resp.message, "NOTOK", "{resp:?}");
+        assert_eq!(resp.result,  "Contract source code already verified", "{resp:?}");
+        assert_eq!(resp.message, "NOTOK", "{resp:?}");
     })
     .await
+}
+
+
+#[tokio::test]
+#[serial]
+async fn can_verify_single_file_contract_on_etherscan() {
+    let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/test-data/WETH.sol"));
+    let source = std::fs::read_to_string(path).expect("failed to read source code");
+    let verification_request = VerifyContract {
+            address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse().unwrap(),
+            code_format: CodeFormat::SingleFile,
+            contract_name: "WETH9".to_owned(),
+            compiler_version:  "v0.4.19+commit.c4cbbb05".to_owned(),
+            runs: Some("200".to_owned()),
+            optimization_used: Some("0".to_owned()),
+            constructor_arguments: Some("".to_owned()),
+            blockscout_constructor_arguments: Some("".to_owned()),
+            evm_version: Some("Default".to_owned()),
+            source,
+            other: std::collections::HashMap::new(),
+        };
+
+
+    // Get environment variable BLOCKSCOUT_API_KEY
+    let api_key = std::env::var("ETHERSCAN_API_KEY").expect("ETHERSCAN_API_KEY not set");
+    let client = Client::builder().with_url("https://etherscan.io").unwrap().with_api_url("https://api.etherscan.io/api").unwrap().with_api_key(api_key).build().unwrap();
+    let resp = client
+        .submit_contract_verification(&verification_request)
+        .await
+        .expect("failed to send the request");
+    assert_eq!(resp.result,  "Contract source code already verified", "{resp:?}");
+    assert_eq!(resp.message, "NOTOK", "{resp:?}");
+}
+#[tokio::test]
+#[serial]
+async fn can_verify_single_file_contract_on_blockscout() {
+    let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/test-data/WETH.sol"));
+    let source = std::fs::read_to_string(path).expect("failed to read source code");
+    let verification_request = VerifyContract {
+            address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse().unwrap(),
+            code_format: CodeFormat::SingleFile,
+            contract_name: "WETH9".to_owned(),
+            compiler_version:  "v0.4.19+commit.c4cbbb05".to_owned(),
+            runs: Some("200".to_owned()),
+            optimization_used: Some("0".to_owned()),
+            constructor_arguments: Some("".to_owned()),
+            blockscout_constructor_arguments: Some("".to_owned()),
+            evm_version: Some("Default".to_owned()),
+            source,
+            other: std::collections::HashMap::new(),
+        };
+
+
+    // Get environment variable BLOCKSCOUT_API_KEY
+    let api_key = std::env::var("BLOCKSCOUT_API_KEY").expect("BLOCKSCOUT_API_KEY not set");
+    let client = Client::builder().with_url("https://eth.blockscout.com").unwrap().with_api_url("https://eth.blockscout.com/api").unwrap().with_api_key(api_key).build().unwrap();
+    let resp = client
+        .submit_contract_verification(&verification_request)
+        .await
+        .expect("failed to send the request");
+    // `Error!` result means that request was malformatted
+    assert_ne!(resp.result, "Error!", "{resp:?}");
+    assert_ne!(resp.message, "NOTOK", "{resp:?}");
 }
